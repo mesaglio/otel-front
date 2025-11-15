@@ -62,19 +62,19 @@ jobs:
             artifact_name: darwin-arm64
 
           - name: macOS AMD64
-            os: macos-13
+            os: macos-15-intel
             goos: darwin
             goarch: amd64
             artifact_name: darwin-amd64
 
           - name: Linux AMD64
-            os: ubuntu-latest
+            os: ubuntu-24.04
             goos: linux
             goarch: amd64
             artifact_name: linux-amd64
 
           - name: Linux ARM64
-            os: ubuntu-latest-arm64
+            os: ubuntu-24.04-arm
             goos: linux
             goarch: arm64
             artifact_name: linux-arm64
@@ -200,9 +200,7 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            dist/*.tar.gz
-            dist/checksums.txt
+          files: dist/*
           generate_release_notes: true
           draft: false
           prerelease: false
@@ -210,11 +208,16 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Update Homebrew Tap
-        if: secrets.HOMEBREW_TAP_GITHUB_TOKEN != ''
+        continue-on-error: true
         env:
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
           VERSION: ${{ github.ref_name }}
         run: |
+          if [ -z "${HOMEBREW_TAP_TOKEN}" ]; then
+            echo "⚠️  HOMEBREW_TAP_GITHUB_TOKEN not set, skipping tap update"
+            exit 0
+          fi
+
           git clone https://${HOMEBREW_TAP_TOKEN}@github.com/mesaglio/homebrew-otel-front.git tap
           cd tap
 
