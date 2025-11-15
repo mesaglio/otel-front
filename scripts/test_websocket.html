@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket Test - OTEL Viewer</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 900px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-top: 0;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            font-weight: bold;
+        }
+        .connected {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .disconnected {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .controls {
+            margin-bottom: 20px;
+        }
+        button {
+            padding: 10px 20px;
+            margin-right: 10px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        .messages {
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 15px;
+            height: 400px;
+            overflow-y: auto;
+            background-color: #f8f9fa;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+        }
+        .message {
+            margin-bottom: 10px;
+            padding: 8px;
+            border-radius: 3px;
+            background-color: white;
+            border-left: 3px solid #007bff;
+        }
+        .message.new_trace {
+            border-left-color: #28a745;
+        }
+        .message.new_log {
+            border-left-color: #ffc107;
+        }
+        .message.new_metric {
+            border-left-color: #17a2b8;
+        }
+        .timestamp {
+            color: #6c757d;
+            font-size: 11px;
+        }
+        .message-type {
+            font-weight: bold;
+            color: #007bff;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px;
+            border-radius: 6px;
+            text-align: center;
+        }
+        .stat-card h3 {
+            margin: 0 0 10px 0;
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        .stat-card .number {
+            font-size: 32px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔌 WebSocket Test - OTEL Viewer</h1>
+
+        <div id="status" class="status disconnected">
+            Status: Disconnected
+        </div>
+
+        <div class="controls">
+            <button id="connectBtn" onclick="connect()">Connect</button>
+            <button id="disconnectBtn" onclick="disconnect()" disabled>Disconnect</button>
+            <button onclick="clearMessages()">Clear Messages</button>
+        </div>
+
+        <div class="stats">
+            <div class="stat-card">
+                <h3>Total Messages</h3>
+                <div class="number" id="totalMessages">0</div>
+            </div>
+            <div class="stat-card">
+                <h3>New Traces</h3>
+                <div class="number" id="traceCount">0</div>
+            </div>
+            <div class="stat-card">
+                <h3>New Logs</h3>
+                <div class="number" id="logCount">0</div>
+            </div>
+        </div>
+
+        <h2>Messages:</h2>
+        <div id="messages" class="messages">
+            <div style="color: #6c757d; text-align: center; padding: 20px;">
+                No messages yet. Click "Connect" to start receiving real-time updates.
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let ws = null;
+        let messageCount = 0;
+        let traceCount = 0;
+        let logCount = 0;
+        let metricCount = 0;
+
+        function connect() {
+            const wsUrl = 'ws://localhost:8000/ws';
+
+            addSystemMessage('Connecting to ' + wsUrl + '...');
+
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = function() {
+                updateStatus(true);
+                addSystemMessage('✅ Connected successfully!');
+                document.getElementById('connectBtn').disabled = true;
+                document.getElementById('disconnectBtn').disabled = false;
+            };
+
+            ws.onmessage = function(event) {
+                try {
+                    const data = JSON.parse(event.data);
+                    handleMessage(data);
+                } catch (e) {
+                    addSystemMessage('❌ Error parsing message: ' + e.message);
+                }
+            };
+
+            ws.onerror = function(error) {
+                addSystemMessage('❌ WebSocket error: ' + error);
+                updateStatus(false);
+            };
+
+            ws.onclose = function() {
+                addSystemMessage('🔌 Connection closed');
+                updateStatus(false);
+                document.getElementById('connectBtn').disabled = false;
+                document.getElementById('disconnectBtn').disabled = true;
+            };
+        }
+
+        function disconnect() {
+            if (ws) {
+                ws.close();
+                ws = null;
+            }
+        }
+
+        function handleMessage(data) {
+            messageCount++;
+
+            switch(data.type) {
+                case 'new_trace':
+                    traceCount++;
+                    addMessage('new_trace', '🔍 New Trace', data.data);
+                    break;
+                case 'new_log':
+                    logCount++;
+                    addMessage('new_log', '📝 New Log', data.data);
+                    break;
+                case 'new_metric':
+                    metricCount++;
+                    addMessage('new_metric', '📊 New Metric', data.data);
+                    break;
+                default:
+                    addMessage('unknown', '❓ Unknown Message', data.data);
+            }
+
+            updateStats();
+        }
+
+        function addMessage(type, title, data) {
+            const messagesDiv = document.getElementById('messages');
+
+            // Clear placeholder if this is first message
+            if (messageCount === 1) {
+                messagesDiv.innerHTML = '';
+            }
+
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message ' + type;
+
+            const timestamp = new Date().toLocaleTimeString();
+
+            messageDiv.innerHTML = `
+                <div class="timestamp">${timestamp}</div>
+                <div class="message-type">${title}</div>
+                <pre style="margin: 5px 0 0 0;">${JSON.stringify(data, null, 2)}</pre>
+            `;
+
+            messagesDiv.insertBefore(messageDiv, messagesDiv.firstChild);
+
+            // Keep only last 50 messages
+            while (messagesDiv.children.length > 50) {
+                messagesDiv.removeChild(messagesDiv.lastChild);
+            }
+        }
+
+        function addSystemMessage(message) {
+            const messagesDiv = document.getElementById('messages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message';
+            messageDiv.style.borderLeftColor = '#6c757d';
+
+            const timestamp = new Date().toLocaleTimeString();
+
+            messageDiv.innerHTML = `
+                <div class="timestamp">${timestamp}</div>
+                <div style="color: #6c757d;">${message}</div>
+            `;
+
+            messagesDiv.insertBefore(messageDiv, messagesDiv.firstChild);
+        }
+
+        function updateStatus(connected) {
+            const statusDiv = document.getElementById('status');
+            if (connected) {
+                statusDiv.className = 'status connected';
+                statusDiv.textContent = 'Status: Connected ✅';
+            } else {
+                statusDiv.className = 'status disconnected';
+                statusDiv.textContent = 'Status: Disconnected ❌';
+            }
+        }
+
+        function updateStats() {
+            document.getElementById('totalMessages').textContent = messageCount;
+            document.getElementById('traceCount').textContent = traceCount;
+            document.getElementById('logCount').textContent = logCount;
+        }
+
+        function clearMessages() {
+            document.getElementById('messages').innerHTML = `
+                <div style="color: #6c757d; text-align: center; padding: 20px;">
+                    Messages cleared.
+                </div>
+            `;
+            messageCount = 0;
+            traceCount = 0;
+            logCount = 0;
+            metricCount = 0;
+            updateStats();
+        }
+    </script>
+</body>
+</html>

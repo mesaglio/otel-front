@@ -1,0 +1,328 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      test_mode:
+        description: 'Run in test mode (no actual release)'
+        required: true
+        default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  build-frontend:
+    name: Build Frontend
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies and build frontend
+        run: |
+          cd frontend
+          npm ci --prefer-offline
+          npm run build
+
+      - name: Upload frontend build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: internal/server/static/
+          retention-days: 1
+
+  build:
+    name: Build ${{ matrix.name }}
+    needs: build-frontend
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS ARM64
+            os: macos-latest
+            goos: darwin
+            goarch: arm64
+            artifact_name: darwin-arm64
+
+          - name: macOS AMD64
+            os: macos-13
+            goos: darwin
+            goarch: amd64
+            artifact_name: darwin-amd64
+
+          - name: Linux AMD64
+            os: ubuntu-latest
+            goos: linux
+            goarch: amd64
+            artifact_name: linux-amd64
+
+          - name: Linux ARM64
+            os: ubuntu-latest-arm64
+            goos: linux
+            goarch: arm64
+            artifact_name: linux-arm64
+            cross_compile: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download frontend build
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: internal/server/static/
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          cache: true
+          cache-dependency-path: go.sum
+
+      # Only for Linux ARM64 cross-compilation if native runner not available
+      - name: Install cross-compilation tools (Linux ARM64)
+        if: matrix.cross_compile == true && runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+
+      - name: Build binary
+        env:
+          CGO_ENABLED: 1
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CC: ${{ matrix.cross_compile == true && matrix.goos == 'linux' && 'aarch64-linux-gnu-gcc' || '' }}
+          CXX: ${{ matrix.cross_compile == true && matrix.goos == 'linux' && 'aarch64-linux-gnu-g++' || '' }}
+        run: |
+          echo "Building ${{ matrix.goos }}/${{ matrix.goarch }}..."
+          mkdir -p dist
+
+          # Extract version info
+          VERSION="${{ github.ref_name }}"
+          COMMIT="${{ github.sha }}"
+          DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+          # Build with version info
+          go build -trimpath \
+            -ldflags="-s -w -X main.version=${VERSION} -X main.commit=${COMMIT} -X main.date=${DATE}" \
+            -o dist/otel-front_${{ matrix.goos }}_${{ matrix.goarch }} \
+            ./cmd/viewer/main.go
+
+          echo "✅ Build complete"
+          ls -lh dist/
+
+      - name: Create archive
+        run: |
+          cd dist
+          BINARY="otel-front_${{ matrix.goos }}_${{ matrix.goarch }}"
+
+          # Copy README for packaging
+          cp ../README.md .
+
+          # Determine archive name format (match GoReleaser style)
+          if [ "${{ matrix.goos }}" = "darwin" ]; then
+            OS_NAME="Darwin"
+          else
+            OS_NAME="Linux"
+          fi
+
+          if [ "${{ matrix.goarch }}" = "amd64" ]; then
+            ARCH_NAME="x86_64"
+          else
+            ARCH_NAME="${{ matrix.goarch }}"
+          fi
+
+          ARCHIVE_NAME="otel-front_${{ github.ref_name }}_${OS_NAME}_${ARCH_NAME}.tar.gz"
+
+          # Create tarball
+          tar -czf "${ARCHIVE_NAME}" "${BINARY}" README.md
+
+          echo "Created: ${ARCHIVE_NAME}"
+          ls -lh "${ARCHIVE_NAME}"
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-${{ matrix.artifact_name }}
+          path: dist/*.tar.gz
+          retention-days: 1
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.test_mode == 'false')
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: build-*
+          path: dist-all/
+
+      - name: Organize artifacts and create checksums
+        run: |
+          mkdir -p dist
+
+          find dist-all -name "*.tar.gz" -exec cp {} dist/ \;
+
+          cd dist
+          sha256sum *.tar.gz > checksums.txt
+
+          echo "📦 Release artifacts:"
+          cat checksums.txt
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.tar.gz
+            dist/checksums.txt
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update Homebrew Tap
+        if: secrets.HOMEBREW_TAP_GITHUB_TOKEN != ''
+        env:
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
+          VERSION: ${{ github.ref_name }}
+        run: |
+          git clone https://${HOMEBREW_TAP_TOKEN}@github.com/mesaglio/homebrew-otel-front.git tap
+          cd tap
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          DARWIN_ARM64_SHA=$(grep "Darwin_arm64" ../dist/checksums.txt | awk '{print $1}')
+          DARWIN_AMD64_SHA=$(grep "Darwin_x86_64" ../dist/checksums.txt | awk '{print $1}')
+          LINUX_ARM64_SHA=$(grep "Linux_arm64" ../dist/checksums.txt | awk '{print $1}')
+          LINUX_AMD64_SHA=$(grep "Linux_x86_64" ../dist/checksums.txt | awk '{print $1}')
+  
+          CLEAN_VERSION="${VERSION#v}"
+
+          cat > otel-front.rb <<EOF
+          # This formula is automatically updated by GitHub Actions
+          # DO NOT EDIT MANUALLY
+
+          class OtelFront < Formula
+            desc "Lightweight OpenTelemetry viewer for local development"
+            homepage "https://github.com/mesaglio/otel-front"
+            version "${CLEAN_VERSION}"
+            license "MIT"
+
+            on_macos do
+              if Hardware::CPU.arm?
+                url "https://github.com/mesaglio/otel-front/releases/download/${VERSION}/otel-front_${VERSION}_Darwin_arm64.tar.gz"
+                sha256 "${DARWIN_ARM64_SHA}"
+              elsif Hardware::CPU.intel?
+                url "https://github.com/mesaglio/otel-front/releases/download/${VERSION}/otel-front_${VERSION}_Darwin_x86_64.tar.gz"
+                sha256 "${DARWIN_AMD64_SHA}"
+              end
+            end
+
+            on_linux do
+              if Hardware::CPU.arm?
+                url "https://github.com/mesaglio/otel-front/releases/download/${VERSION}/otel-front_${VERSION}_Linux_arm64.tar.gz"
+                sha256 "${LINUX_ARM64_SHA}"
+              elsif Hardware::CPU.intel?
+                url "https://github.com/mesaglio/otel-front/releases/download/${VERSION}/otel-front_${VERSION}_Linux_x86_64.tar.gz"
+                sha256 "${LINUX_AMD64_SHA}"
+              end
+            end
+
+            def install
+              bin.install "otel-front_darwin_arm64" => "otel-front" if OS.mac? && Hardware::CPU.arm?
+              bin.install "otel-front_darwin_amd64" => "otel-front" if OS.mac? && Hardware::CPU.intel?
+              bin.install "otel-front_linux_arm64" => "otel-front" if OS.linux? && Hardware::CPU.arm?
+              bin.install "otel-front_linux_amd64" => "otel-front" if OS.linux? && Hardware::CPU.intel?
+            end
+
+            def caveats
+              <<~EOS
+                OTEL Front has been installed!
+
+                To start the viewer:
+                  otel-front
+
+                The web UI will open at http://localhost:8000
+
+                OTLP endpoints:
+                  - HTTP: http://localhost:4318
+                  - gRPC: localhost:4317
+
+                For more information:
+                  https://github.com/mesaglio/otel-front
+              EOS
+            end
+
+            test do
+              system "#{bin}/otel-front", "--version"
+            end
+          end
+          EOF
+
+          # Commit and push
+          git add otel-front.rb
+          git commit -m "Update formula to version ${VERSION}"
+          git push origin main
+
+          echo "✅ Homebrew tap updated successfully"
+
+  # Test mode - just build and upload artifacts
+  test-release:
+    name: Test Release (Snapshot)
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.test_mode == 'true'
+
+    steps:
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: build-*
+          path: dist-all/
+
+      - name: Organize artifacts
+        run: |
+          mkdir -p dist
+          find dist-all -name "*.tar.gz" -exec cp {} dist/ \;
+          cd dist
+          sha256sum *.tar.gz > checksums.txt
+          ls -lh
+
+      - name: Upload snapshot artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: snapshot-release
+          path: |
+            dist/*.tar.gz
+            dist/checksums.txt
+          retention-days: 7

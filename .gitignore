@@ -1,0 +1,46 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go build
+/bin/
+/dist/
+otel-viewer
+
+# Go workspace file
+go.work
+
+# Environment variables
+.env
+.env.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Frontend
+node_modules/
+/frontend/dist/
+/frontend/.vite/
+*.log
+
+# Database
+*.db
+*.sqlite
+postgres-data/
+
+# Embedded assets (will be generated)
+internal/server/static/

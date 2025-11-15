@@ -1,0 +1,85 @@
+# GoReleaser configuration for otel-front
+# Note: This project uses GitHub Actions with native runners for builds
+# This file is kept for local snapshot testing and future use
+
+version: 2
+
+project_name: otel-front
+
+# Build configuration for local testing only
+before:
+  hooks:
+    # Build frontend before creating binaries
+    - cd frontend && npm ci && npm run build
+
+builds:
+  - id: otel-front
+    main: ./cmd/viewer/main.go
+    binary: otel-front
+
+    env:
+      - CGO_ENABLED=1
+
+    # Only build for current platform in snapshot mode
+    goos:
+      - linux
+      - darwin
+
+    goarch:
+      - amd64
+      - arm64
+
+    flags:
+      - -trimpath
+
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.date={{.Date}}
+
+# Archives configuration
+archives:
+  - id: default
+    formats:
+      - tar.gz
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- .Version }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+      {{- if .Arm }}v{{ .Arm }}{{ end }}
+
+    files:
+      - README.md
+      - LICENSE*
+
+# Checksums
+checksum:
+  name_template: 'checksums.txt'
+  algorithm: sha256
+
+# Changelog
+changelog:
+  use: github
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^ci:'
+      - '^chore:'
+      - 'typo'
+
+# Snapshots
+snapshot:
+  version_template: "{{ .Version }}-next"
+
+# Disable announcements
+announce:
+  skip: true
+
+# Note: Homebrew tap is updated via GitHub Actions, not GoReleaser
+# This ensures compatibility with native builds and CGO requirements
