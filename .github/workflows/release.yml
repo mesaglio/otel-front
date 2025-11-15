@@ -200,10 +200,13 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/*
+          files: |
+            dist/*.tar.gz
+            dist/checksums.txt
           generate_release_notes: true
           draft: false
           prerelease: false
+          fail_on_unmatched_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
