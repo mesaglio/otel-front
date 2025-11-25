@@ -22,11 +22,15 @@ export function OTelExportConfig({
   }, [hasData])
 
   const httpConfig = `export OTEL_EXPORTER_OTLP_ENDPOINT="http://localhost:${httpPort}"
+export OTEL_LOGS_EXPORTER="otlp"
 export OTEL_TRACES_EXPORTER="otlp"
+export OTEL_METRICS_EXPORTER="otlp"
 export OTEL_EXPORTER_OTLP_PROTOCOL="http/protobuf"`
 
   const grpcConfig = `export OTEL_EXPORTER_OTLP_ENDPOINT="http://localhost:${grpcPort}"
+export OTEL_LOGS_EXPORTER="otlp"
 export OTEL_TRACES_EXPORTER="otlp"
+export OTEL_METRICS_EXPORTER="otlp"
 export OTEL_EXPORTER_OTLP_PROTOCOL="grpc"`
 
   const copyToClipboard = async (text: string, type: 'http' | 'grpc') => {
