@@ -13,7 +13,7 @@
     "test:coverage": "vitest --coverage"
   },
   "dependencies": {
-    "@types/react-window": "^1.8.8",
+    "@types/react-window": "^2.0.0",
     "axios": "^1.7.7",
     "chart.js": "^4.5.1",
     "lucide-react": "^0.548.0",
@@ -21,7 +21,7 @@
     "react-chartjs-2": "^5.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.26.2",
-    "react-window": "^2.2.2"
+    "react-window": "^2.2.7"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.9.1",
