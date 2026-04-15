@@ -1,16 +1,20 @@
 import { useState, useEffect, useRef } from 'react'
-import { LayoutDashboard, Trash2, Save, Check } from 'lucide-react'
+import { LayoutDashboard, Trash2, Save, Check, Table2 } from 'lucide-react'
 import { QueryBuilder } from '../components/Metrics/QueryBuilder'
 import { DashboardGrid } from '../components/Metrics/DashboardGrid'
 import { AlertsPanel, type Alert } from '../components/Metrics/AlertsPanel'
+import { MetricsExplorer } from '../components/Metrics/MetricsExplorer'
 import { useMetricNames } from '../hooks/useMetrics'
 import { useServices } from '../hooks/useServices'
 import type { WidgetConfig } from '../components/Metrics/MetricWidget'
 import type { AggregationRequest } from '../types/api'
 
+type Tab = 'dashboard' | 'explorer'
+
 const DASHBOARD_STORAGE_KEY = 'otel-front-metrics-dashboard'
 
 export function Metrics() {
+  const [tab, setTab] = useState<Tab>('dashboard')
   const [widgets, setWidgets] = useState<WidgetConfig[]>([])
   const [alerts, setAlerts] = useState<Alert[]>([])
   const [isSaved, setIsSaved] = useState(false)
@@ -115,14 +119,14 @@ export function Metrics() {
   return (
     <div className="px-4 py-6 sm:px-0">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Metrics Dashboard</h1>
+          <h1 className="text-3xl font-bold text-gray-900">Metrics</h1>
           <p className="mt-1 text-sm text-gray-500">
-            Monitor your application metrics with customizable dashboards
+            Monitor your application metrics with customizable dashboards or explore raw data points
           </p>
         </div>
-        {widgets.length > 0 && (
+        {tab === 'dashboard' && widgets.length > 0 && (
           <div className="flex items-center gap-3">
             <button
               onClick={handleSaveDashboard}
@@ -156,37 +160,73 @@ export function Metrics() {
         )}
       </div>
 
-      {/* Query Builder */}
-      {metricNames.length > 0 && (
-        <div className="mb-6">
-          <QueryBuilder
-            metricNames={metricNames}
-            services={services}
-            onExecute={handleExecuteQuery}
-            onClear={() => setWidgets([])}
-          />
-        </div>
+      {/* Tab bar */}
+      <div className="flex border-b border-gray-200 mb-6">
+        <button
+          onClick={() => setTab('dashboard')}
+          className={`inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors focus:outline-none ${
+            tab === 'dashboard'
+              ? 'border-blue-600 text-blue-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+          }`}
+        >
+          <LayoutDashboard className="w-4 h-4" />
+          Dashboard
+        </button>
+        <button
+          onClick={() => setTab('explorer')}
+          className={`inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors focus:outline-none ${
+            tab === 'explorer'
+              ? 'border-blue-600 text-blue-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+          }`}
+        >
+          <Table2 className="w-4 h-4" />
+          Explorer
+        </button>
+      </div>
+
+      {/* Dashboard tab */}
+      {tab === 'dashboard' && (
+        <>
+          {/* Query Builder */}
+          {metricNames.length > 0 && (
+            <div className="mb-6">
+              <QueryBuilder
+                metricNames={metricNames}
+                services={services}
+                onExecute={handleExecuteQuery}
+                onClear={() => setWidgets([])}
+              />
+            </div>
+          )}
+
+          {/* Active Alerts */}
+          {alerts.length > 0 && (
+            <div className="mb-6">
+              <AlertsPanel alerts={alerts} onDismiss={handleDismissAlert} />
+            </div>
+          )}
+
+          {/* Dashboard Grid */}
+          <DashboardGrid widgets={widgets} onRemoveWidget={handleRemoveWidget} />
+
+          {/* Empty State */}
+          {widgets.length === 0 && metricNames.length === 0 && (
+            <div className="bg-white rounded-lg shadow-md p-12 text-center">
+              <LayoutDashboard className="w-16 h-16 mx-auto text-gray-400 mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No metrics available</h3>
+              <p className="text-gray-500 max-w-md mx-auto">
+                Start sending metrics to your application using OpenTelemetry to see them here.
+              </p>
+            </div>
+          )}
+        </>
       )}
 
-      {/* Active Alerts */}
-      {alerts.length > 0 && (
-        <div className="mb-6">
-          <AlertsPanel alerts={alerts} onDismiss={handleDismissAlert} />
-        </div>
-      )}
-
-      {/* Dashboard Grid */}
-      <DashboardGrid widgets={widgets} onRemoveWidget={handleRemoveWidget} />
-
-      {/* Empty State */}
-      {widgets.length === 0 && metricNames.length === 0 && (
-        <div className="bg-white rounded-lg shadow-md p-12 text-center">
-          <LayoutDashboard className="w-16 h-16 mx-auto text-gray-400 mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No metrics available</h3>
-          <p className="text-gray-500 max-w-md mx-auto">
-            Start sending metrics to your application using OpenTelemetry to see them here.
-          </p>
-        </div>
+      {/* Explorer tab */}
+      {tab === 'explorer' && (
+        <MetricsExplorer metricNames={metricNames} services={services} />
       )}
     </div>
   )
