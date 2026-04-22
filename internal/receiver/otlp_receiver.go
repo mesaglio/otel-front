@@ -1,6 +1,7 @@
 package receiver
 
 import (
+	"compress/gzip"
 	"context"
 	"fmt"
 	"io"
@@ -21,12 +22,12 @@ import (
 
 // OTLPReceiver receives OTLP data via HTTP and gRPC
 type OTLPReceiver struct {
-	httpPort     int
-	grpcPort     int
-	store        *store.Store
-	logger       *zap.Logger
-	httpServer   *http.Server
-	grpcServer   *grpc.Server
+	httpPort   int
+	grpcPort   int
+	store      *store.Store
+	logger     *zap.Logger
+	httpServer *http.Server
+	grpcServer *grpc.Server
 }
 
 // NewOTLPReceiver creates a new OTLP receiver
@@ -105,14 +106,34 @@ func (r *OTLPReceiver) startGRPCServer(ctx context.Context) error {
 	return r.grpcServer.Serve(lis)
 }
 
+// decompressIfNeeded wraps req.Body with a gzip reader when
+// Content-Encoding: gzip is present.
+func decompressIfNeeded(req *http.Request) (io.ReadCloser, error) {
+	if req.Header.Get("Content-Encoding") == "gzip" {
+		gr, err := gzip.NewReader(req.Body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create gzip reader: %w", err)
+		}
+		return gr, nil
+	}
+	return req.Body, nil
+}
+
 // handleHTTPTraces handles HTTP trace requests
 func (r *OTLPReceiver) handleHTTPTraces(w http.ResponseWriter, req *http.Request) {
-	body, err := io.ReadAll(req.Body)
+	bodyReader, err := decompressIfNeeded(req)
+	if err != nil {
+		http.Error(w, "failed to decompress body", http.StatusBadRequest)
+		r.logger.Error("Failed to decompress request body", zap.Error(err))
+		return
+	}
+	defer bodyReader.Close()
+
+	body, err := io.ReadAll(bodyReader)
 	if err != nil {
 		http.Error(w, "failed to read body", http.StatusBadRequest)
 		return
 	}
-	defer req.Body.Close()
 
 	// Unmarshal protobuf
 	request := ptraceotlp.NewExportRequest()
@@ -138,12 +159,19 @@ func (r *OTLPReceiver) handleHTTPTraces(w http.ResponseWriter, req *http.Request
 
 // handleHTTPLogs handles HTTP log requests
 func (r *OTLPReceiver) handleHTTPLogs(w http.ResponseWriter, req *http.Request) {
-	body, err := io.ReadAll(req.Body)
+	bodyReader, err := decompressIfNeeded(req)
+	if err != nil {
+		http.Error(w, "failed to decompress body", http.StatusBadRequest)
+		r.logger.Error("Failed to decompress request body", zap.Error(err))
+		return
+	}
+	defer bodyReader.Close()
+
+	body, err := io.ReadAll(bodyReader)
 	if err != nil {
 		http.Error(w, "failed to read body", http.StatusBadRequest)
 		return
 	}
-	defer req.Body.Close()
 
 	// Unmarshal protobuf
 	request := plogotlp.NewExportRequest()
@@ -169,12 +197,19 @@ func (r *OTLPReceiver) handleHTTPLogs(w http.ResponseWriter, req *http.Request) 
 
 // handleHTTPMetrics handles HTTP metric requests
 func (r *OTLPReceiver) handleHTTPMetrics(w http.ResponseWriter, req *http.Request) {
-	body, err := io.ReadAll(req.Body)
+	bodyReader, err := decompressIfNeeded(req)
+	if err != nil {
+		http.Error(w, "failed to decompress body", http.StatusBadRequest)
+		r.logger.Error("Failed to decompress request body", zap.Error(err))
+		return
+	}
+	defer bodyReader.Close()
+
+	body, err := io.ReadAll(bodyReader)
 	if err != nil {
 		http.Error(w, "failed to read body", http.StatusBadRequest)
 		return
 	}
-	defer req.Body.Close()
 
 	// Unmarshal protobuf
 	request := pmetricotlp.NewExportRequest()
