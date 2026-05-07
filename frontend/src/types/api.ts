@@ -76,10 +76,6 @@ export interface MetricAggregation {
   unit?: string
 }
 
-export interface Service {
-  service_name: string
-}
-
 export interface TraceFilters {
   service?: string
   errors?: boolean

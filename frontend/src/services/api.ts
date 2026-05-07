@@ -9,7 +9,6 @@ import type {
   MetricFilters,
   MetricAggregation,
   AggregationRequest,
-  Service,
 } from '../types/api'
 
 class ApiClient {
@@ -82,8 +81,8 @@ class ApiClient {
   }
 
   // Services
-  async getServices(): Promise<Service[]> {
-    const response = await this.client.get<{ services: Service[]; count: number }>('/services')
+  async getServices(): Promise<string[]> {
+    const response = await this.client.get<{ services: string[]; count: number }>('/services')
     return response.data.services
   }
 
