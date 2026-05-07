@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"sort"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -104,14 +105,43 @@ func (h *MetricsHandler) AggregateMetrics(c *gin.Context) {
 	})
 }
 
-// GetServices returns a list of unique services
+// GetServices returns a list of unique services across traces, metrics,
+// and logs. The original implementation only queried the traces table,
+// which left the list empty when only metrics or logs were ingested.
 func (h *MetricsHandler) GetServices(c *gin.Context) {
-	services, err := h.store.Traces.GetServices(c.Request.Context())
-	if err != nil {
-		h.logger.Error("Failed to get services", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve services"})
-		return
+	ctx := c.Request.Context()
+	seen := map[string]struct{}{}
+
+	add := func(names []string) {
+		for _, n := range names {
+			if n == "" {
+				continue
+			}
+			seen[n] = struct{}{}
+		}
 	}
+
+	if names, err := h.store.Traces.GetServices(ctx); err != nil {
+		h.logger.Warn("Failed to get trace services", zap.Error(err))
+	} else {
+		add(names)
+	}
+	if names, err := h.store.Metrics.GetServices(ctx); err != nil {
+		h.logger.Warn("Failed to get metric services", zap.Error(err))
+	} else {
+		add(names)
+	}
+	if names, err := h.store.Logs.GetServices(ctx); err != nil {
+		h.logger.Warn("Failed to get log services", zap.Error(err))
+	} else {
+		add(names)
+	}
+
+	services := make([]string, 0, len(seen))
+	for n := range seen {
+		services = append(services, n)
+	}
+	sort.Strings(services)
 
 	c.JSON(http.StatusOK, gin.H{
 		"services": services,

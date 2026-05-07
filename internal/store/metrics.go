@@ -206,6 +206,29 @@ func (ms *MetricsStore) GetMetricsCount(ctx context.Context) (int64, error) {
 }
 
 // GetMetricNames returns a list of unique metric names
+// GetServices returns a list of unique service names that have metrics
+func (ms *MetricsStore) GetServices(ctx context.Context) ([]string, error) {
+	rows, err := ms.db.QueryContext(ctx, `
+		SELECT DISTINCT service_name FROM metrics
+		WHERE service_name IS NOT NULL AND service_name != ''
+		ORDER BY service_name
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query metric services: %w", err)
+	}
+	defer rows.Close()
+
+	services := []string{}
+	for rows.Next() {
+		var service string
+		if err := rows.Scan(&service); err != nil {
+			return nil, fmt.Errorf("failed to scan service: %w", err)
+		}
+		services = append(services, service)
+	}
+	return services, nil
+}
+
 func (ms *MetricsStore) GetMetricNames(ctx context.Context, serviceName string) ([]string, error) {
 	query := "SELECT DISTINCT metric_name FROM metrics"
 	args := []interface{}{}

@@ -58,6 +58,29 @@ func (ls *LogsStore) InsertLog(ctx context.Context, log *LogRecord) error {
 	return nil
 }
 
+// GetServices returns a list of unique service names that have logs
+func (ls *LogsStore) GetServices(ctx context.Context) ([]string, error) {
+	rows, err := ls.db.QueryContext(ctx, `
+		SELECT DISTINCT service_name FROM logs
+		WHERE service_name IS NOT NULL AND service_name != ''
+		ORDER BY service_name
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query log services: %w", err)
+	}
+	defer rows.Close()
+
+	services := []string{}
+	for rows.Next() {
+		var service string
+		if err := rows.Scan(&service); err != nil {
+			return nil, fmt.Errorf("failed to scan service: %w", err)
+		}
+		services = append(services, service)
+	}
+	return services, nil
+}
+
 // InsertLogs inserts multiple log records in a batch
 func (ls *LogsStore) InsertLogs(ctx context.Context, logs []LogRecord) error {
 	if len(logs) == 0 {
