@@ -19,7 +19,7 @@ export function TracesList() {
   useEffect(() => {
     apiClient
       .getServices()
-      .then((data) => setServices(data.map((s) => s.service_name)))
+      .then(setServices)
       .catch((err: Error) => console.error('Failed to fetch services:', err))
   }, [])
 
