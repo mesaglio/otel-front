@@ -2,24 +2,24 @@ import { Link } from 'react-router-dom'
 import { ExternalLink, Copy, Check } from 'lucide-react'
 import { useState } from 'react'
 import type { Log } from '../../types/api'
+import { buildLogCopyText, getLogSeverityColor } from '../../utils/logs'
 
 interface LogTableProps {
   logs: Log[]
   searchQuery?: string
   onCopyLog?: (log: Log) => void
+  onSelectLog?: (log: Log) => void
+  selectedLogId?: number | null
 }
 
-export function LogTable({ logs, searchQuery, onCopyLog }: LogTableProps) {
+export function LogTable({
+  logs,
+  searchQuery,
+  onCopyLog,
+  onSelectLog,
+  selectedLogId,
+}: LogTableProps) {
   const [copiedId, setCopiedId] = useState<number | null>(null)
-
-  const getSeverityColor = (severity: number) => {
-    if (severity >= 21) return 'bg-red-600 text-white' // FATAL
-    if (severity >= 17) return 'bg-red-100 text-red-800' // ERROR
-    if (severity >= 13) return 'bg-yellow-100 text-yellow-800' // WARN
-    if (severity >= 9) return 'bg-blue-100 text-blue-800' // INFO
-    if (severity >= 5) return 'bg-gray-100 text-gray-800' // DEBUG
-    return 'bg-gray-50 text-gray-600' // TRACE
-  }
 
   const highlightText = (text: string, query?: string) => {
     if (!query || query.trim() === '') return text
@@ -41,9 +41,8 @@ export function LogTable({ logs, searchQuery, onCopyLog }: LogTableProps) {
   }
 
   const handleCopyLog = async (log: Log) => {
-    const logText = `[${new Date(log.timestamp).toISOString()}] [${log.severity_text}] [${log.service_name}] ${log.body}`
     try {
-      await navigator.clipboard.writeText(logText)
+      await navigator.clipboard.writeText(buildLogCopyText(log))
       setCopiedId(log.id)
       setTimeout(() => setCopiedId(null), 2000)
       onCopyLog?.(log)
@@ -58,9 +57,24 @@ export function LogTable({ logs, searchQuery, onCopyLog }: LogTableProps) {
     return (
       <div
         style={style}
-        className={`px-4 py-3 border-b border-gray-200 hover:bg-gray-50 ${
-          index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
+        className={`px-4 py-3 border-b border-gray-200 cursor-pointer transition-colors ${
+          selectedLogId === log.id
+            ? 'bg-blue-50 ring-1 ring-inset ring-blue-200'
+            : index % 2 === 0
+            ? 'bg-white hover:bg-gray-50'
+            : 'bg-gray-50 hover:bg-gray-100'
         }`}
+        onClick={() => onSelectLog?.(log)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault()
+            onSelectLog?.(log)
+          }
+        }}
+        role="button"
+        tabIndex={0}
+        aria-label={`View details for log ${log.id}`}
+        aria-pressed={selectedLogId === log.id}
       >
         <div className="flex items-start gap-3">
           {/* Timestamp */}
@@ -77,7 +91,7 @@ export function LogTable({ logs, searchQuery, onCopyLog }: LogTableProps) {
           {/* Severity */}
           <div className="w-20 flex-shrink-0">
             <span
-              className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${getSeverityColor(
+              className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${getLogSeverityColor(
                 log.severity
               )}`}
             >
@@ -103,6 +117,7 @@ export function LogTable({ logs, searchQuery, onCopyLog }: LogTableProps) {
               <div className="mt-1 flex items-center gap-2">
                 <Link
                   to={`/traces/${log.trace_id}`}
+                  onClick={(event) => event.stopPropagation()}
                   className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800"
                 >
                   <ExternalLink size={12} />
@@ -118,7 +133,10 @@ export function LogTable({ logs, searchQuery, onCopyLog }: LogTableProps) {
           {/* Actions */}
           <div className="w-10 flex-shrink-0">
             <button
-              onClick={() => handleCopyLog(log)}
+              onClick={(event) => {
+                event.stopPropagation()
+                void handleCopyLog(log)
+              }}
               className="p-1 text-gray-400 hover:text-gray-600"
               title="Copy log entry"
             >

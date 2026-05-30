@@ -19,3 +19,25 @@ export function formatDurationPrecise(durationMs: number): string {
   }
   return `${durationMs.toFixed(3)}ms`
 }
+
+/**
+ * Format ISO timestamps with second precision plus the original fractional part when present.
+ */
+export function formatTimestampPrecise(timestamp: string): string {
+  if (!timestamp) return 'N/A'
+
+  const date = new Date(timestamp)
+  if (isNaN(date.getTime())) return 'Invalid'
+
+  const time = date.toLocaleTimeString('en-US', {
+    hour12: false,
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  })
+
+  const fractionalMatch = timestamp.match(/\.(\d+)(?:Z|[+-]\d{2}:\d{2})?$/)
+  if (!fractionalMatch) return time
+
+  return `${time}.${fractionalMatch[1].slice(0, 6)}`
+}

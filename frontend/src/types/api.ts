@@ -53,8 +53,8 @@ export interface Log {
   severity_text: string
   service_name: string
   body: string
-  attributes: Record<string, string>
-  resource_attributes: Record<string, string>
+  attributes: Record<string, unknown>
+  resource_attributes: Record<string, unknown>
 }
 
 export interface Metric {

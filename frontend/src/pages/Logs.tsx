@@ -1,15 +1,31 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { FileText } from 'lucide-react'
 import { useLogs } from '../hooks/useLogs'
 import { useServices } from '../hooks/useServices'
 import { LogFiltersBar } from '../components/Logs/LogFiltersBar'
+import { LogDetailsPanel } from '../components/Logs/LogDetailsPanel'
 import { LogTable } from '../components/Logs/LogTable'
-import type { LogFilters } from '../types/api'
+import type { Log, LogFilters } from '../types/api'
 
 export function Logs() {
   const [filters, setFilters] = useState<LogFilters>({ limit: 100 })
+  const [selectedLog, setSelectedLog] = useState<Log | null>(null)
   const { logs, total, loading, error } = useLogs(filters)
   const { services } = useServices()
+
+  useEffect(() => {
+    if (!selectedLog) return
+
+    const updatedSelection = logs.find((log) => log.id === selectedLog.id)
+    if (!updatedSelection) {
+      setSelectedLog(null)
+      return
+    }
+
+    if (updatedSelection !== selectedLog) {
+      setSelectedLog(updatedSelection)
+    }
+  }, [logs, selectedLog])
 
   return (
     <div className="px-4 py-6 sm:px-0">
@@ -58,7 +74,16 @@ export function Logs() {
           </p>
         </div>
       ) : (
-        <LogTable logs={logs} searchQuery={filters.search} />
+        <LogTable
+          logs={logs}
+          searchQuery={filters.search}
+          onSelectLog={setSelectedLog}
+          selectedLogId={selectedLog?.id ?? null}
+        />
+      )}
+
+      {selectedLog && (
+        <LogDetailsPanel log={selectedLog} onClose={() => setSelectedLog(null)} />
       )}
     </div>
   )
