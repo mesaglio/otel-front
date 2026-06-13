@@ -57,6 +57,14 @@ export interface Log {
   resource_attributes: Record<string, string>
 }
 
+export interface MetricExemplar {
+  value: number
+  timestamp: string
+  trace_id: string
+  span_id: string
+  attributes?: Record<string, unknown>
+}
+
 export interface Metric {
   id: number
   metric_name: string
@@ -65,7 +73,8 @@ export interface Metric {
   timestamp: string
   value: number
   unit?: string
-  attributes: Record<string, string>
+  attributes: Record<string, unknown>
+  exemplars?: MetricExemplar[]
 }
 
 export interface MetricAggregation {
