@@ -1,6 +1,7 @@
 package receiver
 
 import (
+	"compress/gzip"
 	"context"
 	"fmt"
 	"io"
@@ -21,12 +22,12 @@ import (
 
 // OTLPReceiver receives OTLP data via HTTP and gRPC
 type OTLPReceiver struct {
-	httpPort     int
-	grpcPort     int
-	store        *store.Store
-	logger       *zap.Logger
-	httpServer   *http.Server
-	grpcServer   *grpc.Server
+	httpPort   int
+	grpcPort   int
+	store      *store.Store
+	logger     *zap.Logger
+	httpServer *http.Server
+	grpcServer *grpc.Server
 }
 
 // NewOTLPReceiver creates a new OTLP receiver
@@ -74,9 +75,9 @@ func (r *OTLPReceiver) startHTTPServer(ctx context.Context) error {
 	mux := http.NewServeMux()
 
 	// Register OTLP HTTP endpoints
-	mux.HandleFunc("/v1/traces", r.handleHTTPTraces)
-	mux.HandleFunc("/v1/logs", r.handleHTTPLogs)
-	mux.HandleFunc("/v1/metrics", r.handleHTTPMetrics)
+	mux.Handle("/v1/traces", gzipRequestMiddleware(http.HandlerFunc(r.handleHTTPTraces)))
+	mux.Handle("/v1/logs", gzipRequestMiddleware(http.HandlerFunc(r.handleHTTPLogs)))
+	mux.Handle("/v1/metrics", gzipRequestMiddleware(http.HandlerFunc(r.handleHTTPMetrics)))
 
 	r.httpServer = &http.Server{
 		Addr:    fmt.Sprintf(":%d", r.httpPort),
@@ -103,6 +104,24 @@ func (r *OTLPReceiver) startGRPCServer(ctx context.Context) error {
 
 	r.logger.Info("Starting OTLP gRPC receiver", zap.Int("port", r.grpcPort))
 	return r.grpcServer.Serve(lis)
+}
+
+// gzipRequestMiddleware transparently decompresses request bodies when
+// Content-Encoding: gzip is present, so handlers can always read req.Body directly.
+func gzipRequestMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Content-Encoding") == "gzip" {
+			gr, err := gzip.NewReader(r.Body)
+			if err != nil {
+				http.Error(w, "failed to decompress body", http.StatusBadRequest)
+				return
+			}
+			r.Body = gr
+			r.Header.Del("Content-Encoding")
+			r.ContentLength = -1
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 // handleHTTPTraces handles HTTP trace requests
