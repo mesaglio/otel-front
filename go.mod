@@ -3,7 +3,7 @@ module github.com/mesaglio/otel-front
 go 1.26.0
 
 require (
-	github.com/duckdb/duckdb-go/v2 v2.10503.0
+	github.com/duckdb/duckdb-go/v2 v2.10503.1
 	github.com/gin-gonic/gin v1.12.0
 	github.com/rs/cors v1.11.1
 	go.opentelemetry.io/collector/pdata v1.59.0

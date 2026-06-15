@@ -60,6 +60,8 @@ github.com/duckdb/duckdb-go/v2 v2.10502.0 h1:YfdiBlXnlRdxIKu1AtBQSRI0/tGhOkIGshK
 github.com/duckdb/duckdb-go/v2 v2.10502.0/go.mod h1:a/31wL2vx7dJ0isrO+E6o28DBQVaVOMbKxp2BsHTGp0=
 github.com/duckdb/duckdb-go/v2 v2.10503.0 h1:cl8hbxl8Wn2rBuBWVyyDyJe/ZfCji7wrMPZ/EdFzN1Y=
 github.com/duckdb/duckdb-go/v2 v2.10503.0/go.mod h1:3trgI3LZo7TTgJYAP9+xCDJYdAF+E+TKE41JWKeWE5I=
+github.com/duckdb/duckdb-go/v2 v2.10503.1 h1:mExuoVmoLQYVdTiGvsKTAlRPtGBVRutx12B8lctU+NI=
+github.com/duckdb/duckdb-go/v2 v2.10503.1/go.mod h1:3trgI3LZo7TTgJYAP9+xCDJYdAF+E+TKE41JWKeWE5I=
 github.com/gabriel-vasile/mimetype v1.4.12 h1:e9hWvmLYvtp846tLHam2o++qitpguFiYCKbn0w9jyqw=
 github.com/gabriel-vasile/mimetype v1.4.12/go.mod h1:d+9Oxyo1wTzWdyVUPMmXFvp4F9tea18J8ufA774AB3s=
 github.com/gin-contrib/sse v1.1.0 h1:n0w2GMuUpWDVp7qSpvze6fAu9iRxJY4Hmj6AmBOU05w=
