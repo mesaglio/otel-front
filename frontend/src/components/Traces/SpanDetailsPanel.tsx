@@ -1,7 +1,7 @@
 import { X, Copy, Check } from 'lucide-react'
 import { useState } from 'react'
 import type { Span } from '../../types/api'
-import { formatDurationPrecise } from '../../utils/format'
+import { formatDurationPrecise, formatTimestampPrecise } from '../../utils/format'
 
 interface SpanDetailsPanelProps {
   span: Span | null
@@ -17,23 +17,6 @@ export function SpanDetailsPanel({ span, onClose }: SpanDetailsPanelProps) {
     navigator.clipboard.writeText(text)
     setCopiedField(field)
     setTimeout(() => setCopiedField(null), 2000)
-  }
-
-  // Format timestamp with microsecond precision
-  const formatTimestamp = (timestamp: string): string => {
-    if (!timestamp) return 'N/A'
-    const date = new Date(timestamp)
-    if (isNaN(date.getTime())) return 'Invalid'
-    const time = date.toLocaleTimeString('en-US', {
-      hour12: false,
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit'
-    })
-    // Get microseconds from ISO string
-    const isoStr = date.toISOString()
-    const microseconds = isoStr.slice(20, 26) // Gets ".123456" part
-    return `${time}${microseconds}`
   }
 
   return (
@@ -81,11 +64,11 @@ export function SpanDetailsPanel({ span, onClose }: SpanDetailsPanelProps) {
             </div>
             <div className="flex justify-between text-sm">
               <dt className="text-gray-500">Start Time</dt>
-              <dd className="text-gray-900 font-medium">{formatTimestamp(span.start_time)}</dd>
+              <dd className="text-gray-900 font-medium">{formatTimestampPrecise(span.start_time)}</dd>
             </div>
             <div className="flex justify-between text-sm">
               <dt className="text-gray-500">End Time</dt>
-              <dd className="text-gray-900 font-medium">{formatTimestamp(span.end_time)}</dd>
+              <dd className="text-gray-900 font-medium">{formatTimestampPrecise(span.end_time)}</dd>
             </div>
           </dl>
         </div>

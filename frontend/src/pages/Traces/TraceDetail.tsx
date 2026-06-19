@@ -1,12 +1,14 @@
 import { useParams, Link } from 'react-router-dom'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { BarChart3, Flame } from 'lucide-react'
 import { useTrace } from '../../hooks/useTraces'
 import { useLogsByTraceId } from '../../hooks/useLogs'
+import { LogDetailsPanel } from '../../components/Logs/LogDetailsPanel'
 import { WaterfallView } from '../../components/Traces/WaterfallView'
 import { SpanDetailsPanel } from '../../components/Traces/SpanDetailsPanel'
 import { FlameGraph } from '../../components/Traces/FlameGraph'
-import type { Span } from '../../types/api'
+import type { Log, Span } from '../../types/api'
+import { getLogSeverityColor } from '../../utils/logs'
 
 type ViewMode = 'waterfall' | 'flame'
 
@@ -16,6 +18,31 @@ export function TraceDetail() {
   const { logs } = useLogsByTraceId(id || null)
   const [viewMode, setViewMode] = useState<ViewMode>('waterfall')
   const [selectedSpan, setSelectedSpan] = useState<Span | null>(null)
+  const [selectedLog, setSelectedLog] = useState<Log | null>(null)
+
+  const handleSpanSelect = (span: Span) => {
+    setSelectedLog(null)
+    setSelectedSpan(span)
+  }
+
+  const handleLogSelect = (log: Log) => {
+    setSelectedSpan(null)
+    setSelectedLog(log)
+  }
+
+  useEffect(() => {
+    if (!selectedLog) return
+
+    const updatedSelection = logs.find((log) => log.id === selectedLog.id)
+    if (!updatedSelection) {
+      setSelectedLog(null)
+      return
+    }
+
+    if (updatedSelection !== selectedLog) {
+      setSelectedLog(updatedSelection)
+    }
+  }, [logs, selectedLog])
 
   if (loading) {
     return (
@@ -115,12 +142,12 @@ export function TraceDetail() {
 
         {/* Waterfall View */}
         {viewMode === 'waterfall' && (
-          <WaterfallView spans={trace.spans} onSpanClick={setSelectedSpan} />
+          <WaterfallView spans={trace.spans} onSpanClick={handleSpanSelect} />
         )}
 
         {/* Flame Graph View */}
         {viewMode === 'flame' && (
-          <FlameGraph spans={trace.spans} onSpanClick={setSelectedSpan} />
+          <FlameGraph spans={trace.spans} onSpanClick={handleSpanSelect} />
         )}
       </div>
 
@@ -131,18 +158,30 @@ export function TraceDetail() {
           <div className="bg-white shadow overflow-hidden sm:rounded-md">
             <ul className="divide-y divide-gray-200">
               {logs.map((log) => (
-                <li key={log.id} className="px-4 py-4 sm:px-6">
+                <li
+                  key={log.id}
+                  className={`px-4 py-4 sm:px-6 cursor-pointer transition-colors ${
+                    selectedLog?.id === log.id ? 'bg-blue-50' : 'hover:bg-gray-50'
+                  }`}
+                  onClick={() => handleLogSelect(log)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault()
+                      handleLogSelect(log)
+                    }
+                  }}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`View details for related log ${log.id}`}
+                  aria-pressed={selectedLog?.id === log.id}
+                >
                   <div className="flex items-center justify-between">
                     <div className="flex-1">
                       <div className="flex items-center">
                         <span
-                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                            log.severity >= 17
-                              ? 'bg-red-100 text-red-800'
-                              : log.severity >= 13
-                              ? 'bg-yellow-100 text-yellow-800'
-                              : 'bg-green-100 text-green-800'
-                          }`}
+                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getLogSeverityColor(
+                            log.severity
+                          )}`}
                         >
                           {log.severity_text}
                         </span>
@@ -163,6 +202,10 @@ export function TraceDetail() {
       {/* Span Details Panel */}
       {selectedSpan && (
         <SpanDetailsPanel span={selectedSpan} onClose={() => setSelectedSpan(null)} />
+      )}
+
+      {selectedLog && (
+        <LogDetailsPanel log={selectedLog} onClose={() => setSelectedLog(null)} />
       )}
     </div>
   )
