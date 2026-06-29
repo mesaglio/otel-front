@@ -6,7 +6,7 @@ require (
 	github.com/duckdb/duckdb-go/v2 v2.10503.1
 	github.com/gin-gonic/gin v1.12.0
 	github.com/rs/cors v1.11.1
-	go.opentelemetry.io/collector/pdata v1.59.0
+	go.opentelemetry.io/collector/pdata v1.60.0
 	go.uber.org/zap v1.28.0
 	google.golang.org/grpc v1.81.1
 )
@@ -49,7 +49,7 @@ require (
 	github.com/ugorji/go/codec v1.3.1 // indirect
 	github.com/zeebo/xxh3 v1.1.0 // indirect
 	go.mongodb.org/mongo-driver/v2 v2.5.0 // indirect
-	go.opentelemetry.io/collector/featuregate v1.59.0 // indirect
+	go.opentelemetry.io/collector/featuregate v1.60.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/arch v0.22.0 // indirect
 	golang.org/x/crypto v0.51.0 // indirect
