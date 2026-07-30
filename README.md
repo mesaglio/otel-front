@@ -1,5 +1,7 @@
 # OTEL Viewer
 
+> **Archived:** Development of this repository has ended. We are collaborating with [otel-desktop-viewer](https://github.com/CtrlSpice/otel-desktop-viewer) on the continued development of an OpenTelemetry desktop viewer.
+
 A lightweight, single-binary OpenTelemetry viewer for local development. Visualize traces, logs, and metrics from your instrumented applications — no Docker, no databases, no complex setup.
 
 ![Dashboard](docs/dashboard.png)
