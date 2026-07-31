@@ -18,6 +18,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"github.com/mesaglio/otel-front/internal/server/middleware"
 )
 
 // OTLPReceiver receives OTLP data via HTTP and gRPC
@@ -73,7 +74,7 @@ func (r *OTLPReceiver) Stop(ctx context.Context) error {
 // startHTTPServer starts the HTTP OTLP receiver
 func (r *OTLPReceiver) startHTTPServer(ctx context.Context) error {
 	mux := http.NewServeMux()
-
+	
 	// Register OTLP HTTP endpoints
 	mux.Handle("/v1/traces", gzipRequestMiddleware(http.HandlerFunc(r.handleHTTPTraces)))
 	mux.Handle("/v1/logs", gzipRequestMiddleware(http.HandlerFunc(r.handleHTTPLogs)))
@@ -81,7 +82,7 @@ func (r *OTLPReceiver) startHTTPServer(ctx context.Context) error {
 
 	r.httpServer = &http.Server{
 		Addr:    fmt.Sprintf(":%d", r.httpPort),
-		Handler: mux,
+		Handler: middleware.CORS()(mux),
 	}
 
 	r.logger.Info("Starting OTLP HTTP receiver", zap.Int("port", r.httpPort))
@@ -105,6 +106,8 @@ func (r *OTLPReceiver) startGRPCServer(ctx context.Context) error {
 	r.logger.Info("Starting OTLP gRPC receiver", zap.Int("port", r.grpcPort))
 	return r.grpcServer.Serve(lis)
 }
+
+
 
 // gzipRequestMiddleware transparently decompresses request bodies when
 // Content-Encoding: gzip is present, so handlers can always read req.Body directly.
@@ -133,6 +136,8 @@ func (r *OTLPReceiver) handleHTTPTraces(w http.ResponseWriter, req *http.Request
 	}
 	defer req.Body.Close()
 
+
+	
 	// Unmarshal protobuf
 	request := ptraceotlp.NewExportRequest()
 	if err := request.UnmarshalProto(body); err != nil {
